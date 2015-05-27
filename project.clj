@@ -1,4 +1,4 @@
-(defproject org.clojars.frozenlock/reagent-table "0.1.0-SNAPSHOT"
+(defproject org.clojars.frozenlock/reagent-table "0.1.0"
   :description "FIXME: write this!"
   :url "http://example.com/FIXME"
   :license {:name "Eclipse Public License"
