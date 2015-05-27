@@ -39,13 +39,14 @@ Then, simply use it as a normal component:
 `table-data` can be raw data, or data in an atom. **If an atom is
 provided, all manipulation will change the data directly inside the atom**.
 
+(If it doesn't match how your atom is built, take a look at
+[entanglement](https://github.com/Frozenlock/entanglement) to bridge
+the two.)
+
 The data must be a map containing at least the following two keys:
 - `:headers`
 - `:rows`
 
-(If it doesn't match how your atom is built, take a look at
-[entanglement](https://github.com/Frozenlock/entanglement) to bridge
-the two.)
 
 For example:
 ```clj
