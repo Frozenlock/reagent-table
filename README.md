@@ -22,6 +22,9 @@ table.
 
 ## Usage
 
+Add this to your project dependencies:
+[![Clojars Project](http://clojars.org/org.clojars.frozenlock/reagent-table/latest-version.svg)](http://clojars.org/org.clojars.frozenlock/reagent-table)
+
 Require Reagent-table in your namespace:
 ```clj
 (ns my-ns
