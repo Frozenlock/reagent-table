@@ -43,6 +43,10 @@ The data must be a map containing at least the following two keys:
 - `:headers`
 - `:rows`
 
+(If it doesn't match how your atom is built, take a look at
+[entanglement](https://github.com/Frozenlock/entanglement) to bridge
+the two.)
+
 For example:
 ```clj
 {:headers ["Row 1" "Row 2" "Row 3" "Row 4"]}
