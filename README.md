@@ -43,8 +43,6 @@ The data must be a map containing at least the following two keys:
 - `:headers`
 - `:rows`
 
-Each of these keys must be a collection (rows) of collections (cells).
-
 For example:
 ```clj
 {:headers ["Row 1" "Row 2" "Row 3" "Row 4"]}
@@ -57,6 +55,8 @@ The cells could also be reagent component:
 		   [:span "Row 3"]
 		   [:span "Row 4"]]}
 ```
+
+`:rows` is similar, but should be a collection of rows, instead of a single row like `:headers`.
 
 When using reagent components as cells, you can add the `:data`
 metadata to each of them. This is the value that will be used when
