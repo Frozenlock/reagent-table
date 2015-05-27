@@ -1,6 +1,9 @@
 Reagent-table
 =========
 
+<img src="https://raw.githubusercontent.com/Frozenlock/reagent-table/master/reagent-table.gif"
+	alt="Reagent-table"/>
+
 A table component with all the usual features you would expect.
 
 - Resizable columns
