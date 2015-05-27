@@ -1,16 +1,19 @@
 Reagent-table
 =========
 
-<img src="https://raw.githubusercontent.com/Frozenlock/reagent-table/master/reagent-table.gif"
-	alt="Reagent-table"/>
-
 A table component with all the usual features you would expect.
 
+- Sort rows
 - Resizable columns
 - Re-order columns
 - Hide/show columns
 
-Contrarily to most React.js tables component, this one use the correct
+
+<img src="https://raw.githubusercontent.com/Frozenlock/reagent-table/master/reagent-table.gif"
+	alt="Reagent-table"/>
+
+
+Contrarily to most React.js table components, this one use the correct
 HTML tags (table, theader, th, tr...) to be compatible with your
 favorite CSS. This also means the data can easily be copied from the
 table.
