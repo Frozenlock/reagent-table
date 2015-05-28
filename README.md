@@ -71,4 +71,13 @@ sorting the columns.
 See `reagent-table.dev` for a simple working example.
 
 
+### Hide/Show Columns
+
+To activate, set the value `:rows-selection` to non-nil in the
+optional config argument.
+
+### Table Caption
+
+Set the value `:caption` to the text value or the component to be used
+as the caption.
 

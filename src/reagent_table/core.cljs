@@ -45,7 +45,7 @@
     (if ascending? sorted (rseq sorted))))
 
 (def default-configs {:table
-                      {:style {:width "100%"}
+                      {:style {:width nil}
                        :thead
                        {:tr
                         {
@@ -94,7 +94,15 @@
   (let [
         state @state-atom
         col-hidden (:col-hidden state)
-        col-state-a (r/cursor state-atom [:col-state n])]
+        col-state-a (r/cursor state-atom [:col-state n])
+        sort-click-fn (fn []
+                        (let [sorting (-> (swap! state-atom update-in [:sorting]
+                                                 #(if-not (= [n :asc] %)
+                                                    [n :asc]
+                                                    [n :desc]))
+                                          (get-in [:sorting 1]))]
+                          (swap! source-atom update-in [:rows]
+                                 sort-fn n (= sorting :asc))))]
     [:th
      (recursive-merge 
       (get configs :th)
@@ -117,30 +125,26 @@
                        (swap! state-atom assoc 
                               :col-hover nil
                               :col-reordering nil))
-       :on-click (fn []
-                   (let [sorting (-> (swap! state-atom update-in [:sorting]
-                                            #(if-not (= [n :asc] %)
-                                               [n :asc]
-                                               [n :desc]))
-                                     (get-in [:sorting 1]))]
-                     (swap! source-atom update-in [:rows]
-                            sort-fn n (= sorting :asc))))
-       :style (merge {:cursor "pointer"
-                      :position "relative"
+       :style (merge {:position "relative"
+                      :cursor "move"
                       :display (when (get col-hidden n) "none")}
                      (when (and (:col-reordering state)
                                 (= n (:col-hover state)))
                        {:border-right "6px solid #3366CC"}))})
-     [:span {:style {:padding-right 30}} i]
+     [:span {:style {:padding-right 50}} i]
      [:span {:style {:position "absolute"
-                     :height "100%"
-                     :right "15px"}}
+                     :text-align "center"
+                     :height "1.5em"
+                     :width "1.5em"
+                     :right "15px"
+                     :cursor "pointer"}
+             :on-click sort-click-fn}
       (condp = (get state :sorting)
         [n :asc] " ▲" 
         [n :desc] " ▼"
         ;; and to occupy the same space...
-        [:span ;; {:style {:visibility "hidden"}}
-         " -"])]
+        [:span {:style {:opacity "0.3"}}
+         " ▼"])]
      [resize-widget (r/current-component)]]))
 
 
@@ -219,7 +223,9 @@
           [:style (str ".reagent-table * table {table-layout:fixed;}"
                        ".reagent-table * td { max-width: 3px;"
                        "overflow: hidden;text-overflow: ellipsis;white-space: nowrap;}")]
-          [rows-selector data-atom state-atom (:rows-selector table-configs)]
+          (when-let [selector-config (:rows-selection table-configs)]
+            (js/console.log (str selector-config))
+            [rows-selector data-atom state-atom selector-config])
           [:table.reagent-table (:table table-configs)
            (when-let [caption (:caption table-configs)]
              caption)

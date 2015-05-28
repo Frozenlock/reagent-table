@@ -19,6 +19,6 @@
     [rt/reagent-table table-data {:table 
                                   {:class "table table-hover table-striped table-bordered table-transition"}
                                   :caption [:caption "Test caption"]
-                                  :rows-selector {:ul
-                                                  {:li {:class "btn"}}}}]]]]
+                                  :rows-selection {:ul
+                                                   {:li {:class "btn"}}}}]]]]
  (. js/document (getElementById "app")))
