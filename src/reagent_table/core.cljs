@@ -224,7 +224,7 @@
                        ".reagent-table * td { max-width: 3px;"
                        "overflow: hidden;text-overflow: ellipsis;white-space: nowrap;}")]
           (when-let [selector-config (:rows-selection table-configs)]
-            (js/console.log (str selector-config))
+            ;(js/console.log (str selector-config))
             [rows-selector data-atom state-atom selector-config])
           [:table.reagent-table (:table table-configs)
            (when-let [caption (:caption table-configs)]
