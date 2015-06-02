@@ -1,4 +1,4 @@
-(defproject org.clojars.frozenlock/reagent-table "0.1.2"
+(defproject org.clojars.frozenlock/reagent-table "0.1.3"
   :description "FIXME: write this!"
   :url "http://example.com/FIXME"
   :license {:name "Eclipse Public License"
@@ -6,7 +6,6 @@
 
   :dependencies [[org.clojure/clojure "1.6.0"]
                  [org.clojure/clojurescript "0.0-3211"]
-                 [org.clojure/core.async "0.1.346.0-17112a-alpha"]
                  [reagent "0.5.0-alpha3"]]
 
   :plugins [[lein-cljsbuild "1.0.5"]

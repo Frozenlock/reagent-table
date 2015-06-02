@@ -74,11 +74,9 @@
                   :position "absolute"
                   :cursor "ew-resize"
                   :height "100%"
-                  :margin-right -3
                   :top 0
                   :right 0
                   ;:background-color "black" ;; for debug
-                  :z-index 1 ;; just to be above the next row
                   }
           :on-click #(.stopPropagation %)
           :on-mouse-down #(let [cell-node (r/dom-node cell-container)
