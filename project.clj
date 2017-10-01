@@ -1,15 +1,15 @@
-(defproject org.clojars.frozenlock/reagent-table "0.1.3"
+(defproject org.clojars.frozenlock/reagent-table "0.1.4-SNAPSHOT"
   :description "FIXME: write this!"
   :url "http://example.com/FIXME"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
 
-  :dependencies [[org.clojure/clojure "1.6.0"]
-                 [org.clojure/clojurescript "0.0-3211"]
-                 [reagent "0.5.0-alpha3"]]
+  :dependencies [[org.clojure/clojure "1.8.0"]
+                 [org.clojure/clojurescript "1.9.671"]
+                 [reagent "0.7.0"]]
 
-  :plugins [[lein-cljsbuild "1.0.5"]
-            [lein-figwheel "0.3.1"]]
+  :plugins [[lein-cljsbuild "1.1.5"]
+            [lein-figwheel "0.5.11"]]
 
   :source-paths ["src"]
 
