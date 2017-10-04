@@ -11,3 +11,6 @@ pom.xml
 .lein-plugins/
 .repl
 .nrepl-port
+reagent-table.iml
+.idea/
+

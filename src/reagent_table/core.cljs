@@ -3,23 +3,21 @@
               [goog.events :as events])
     (:import [goog.events EventType]))
 
-;;; Is the code horrible? Yup!
-;;; Does it work? Yup!
-;;; Do I have time to clean it up? Not really...
+;;; Is the code horrible? Yup! (contributor: not that bad)
+;;; Does it work? Yup! (contributor: by and large)
+;;; Do I have time to clean it up? Not really... (contributor: let's have a go)
 
-
-
-(defn drag-move-fn [on-drag]
+(defn- drag-move-fn [on-drag]
   (fn [evt]
     (.preventDefault evt) ;; otherwise we select text while resizing
     (on-drag (.-clientX evt) (.-clientY evt))))
 
-(defn drag-end-fn [drag-move drag-end]
+(defn- drag-end-fn [drag-move drag-end]
   (fn [evt]
     (events/unlisten js/window EventType.MOUSEMOVE drag-move)
     (events/unlisten js/window EventType.MOUSEUP @drag-end)))
 
-(defn dragging [on-drag]
+(defn- dragging [on-drag]
   (let [drag-move (drag-move-fn on-drag)
         drag-end-atom (atom nil)
         drag-end (drag-end-fn drag-move drag-end-atom)]
@@ -29,48 +27,60 @@
   
 
 
-(defn recursive-merge
+(defn- recursive-merge
   "Recursively merge hash maps."
   [a b]
   (if (and (map? a) (map? b))
     (merge-with recursive-merge a b)
     b))
 
+(defn- column-index-to-model
+  "Convert the given column in view coordinates to
+  model coordinates."
+  [state-atom view-col]
+  (-> @state-atom
+      :col-index-to-model
+      (nth view-col)))
 
-(defn sort-fn
-  [rows column ascending?]
-  (let [sorted (sort-by (fn [r] 
-                          (let [cell (nth r column)]
-                            (get (meta cell) :data cell))) rows)]
-    (if ascending? sorted (rseq sorted))))
+(defn- reorder-column-index-to-model!
+  "Maintain the column-index-to-model mapping after
+  view reordering. The arguments are the drag and drop
+  columns, in view coordinates."
+  [drag-col drop-col state-atom]
+  (let [cur          (:col-index-to-model @state-atom)
+        lower-bound  (min drag-col drop-col)
+        upper-bound  (max drag-col drop-col)
+        direction    (if (< drag-col drop-col) :right :left)
+        moving-model (column-index-to-model state-atom drag-col)]
+    ;(.log js/console (str "drag-col: " drag-col))
+    ;(.log js/console (str "drop-col: " drop-col))
+    (swap! state-atom
+           assoc :col-index-to-model
+                 (into []
+                       (map-indexed
+                         (fn [view-col model-col]
+                           (cond (= view-col drop-col)
+                                 (cur drag-col)
 
-(def default-configs {:table
-                      {:style {:width nil}
-                       :thead
-                       {:tr
-                        {
-                         :th
-                         {:style {;:transition "all 0.2s ease-in-out;"
-                                  ;; :-moz-user-select "none"
-                                  ;; :-webkit-user-select "none"
-                                  ;; :-ms-user-select "none"
-                                  }}}}}})
+                                 (or (< view-col lower-bound)
+                                     (> view-col upper-bound))
+                                 (cur view-col)
 
-(defn reorder-column! [source-atom c1 c2]
-  (let [swap-vec (fn [v i1 i2]
-                   (let [v (vec v)]
-                     (assoc v i2 (nth v i1) i1 (nth v i2))))
-        source @source-atom
-        updated-source (-> source
-                           (update-in [:headers] swap-vec c1 c2)
-                           (update-in [:rows] (fn [s] (mapv #(swap-vec % c1 c2) s))))]
-    (reset! source-atom updated-source)))
-    
+                                 (and (>= view-col lower-bound)
+                                      (= direction :right))
+                                 (cur (inc view-col))
 
+                                 (and (<= view-col upper-bound)
+                                      (= direction :left))
+                                 (cur (dec view-col))))
+                         cur)))))
 
-(defn resize-widget [cell-container]
+(def default-config {:table
+                      {:style {:width nil}}})
+
+(defn- resize-widget [cell-container]
   [:span {:style {:display "inline-block"
-                  :width "8"
+                  :width "8px"
                   :position "absolute"
                   :cursor "ew-resize"
                   :height "100%"
@@ -87,151 +97,251 @@
                                (aset cell-node "width" (- init-width (- init-x x)))))
                             (.preventDefault %))}])
 
+(defn- update-sort-columns!
+  "Maintain multiple sort columns each with individual directions. The
+  column numbers are in model coordinates.
 
-(defn header-cell-fn [i n configs source-atom state-atom]
-  (let [
-        state @state-atom
-        col-hidden (:col-hidden state)
-        col-state-a (r/cursor state-atom [:col-state n])
-        sort-click-fn (fn []
-                        (let [sorting (-> (swap! state-atom update-in [:sorting]
-                                                 #(if-not (= [n :asc] %)
-                                                    [n :asc]
-                                                    [n :desc]))
-                                          (get-in [:sorting 1]))]
-                          (swap! source-atom update-in [:rows]
-                                 sort-fn n (= sorting :asc))))]
+  A column is initially set to ascending order and toggled thereafter.
+  If a column is not present in list it is appended or becomes the only
+  element when 'append' is false."
+  [model-col state-atom append]
+  (let [sorting (:sorting @state-atom)]
+    (swap! state-atom
+           assoc :sorting
+           (if-not append
+             [[model-col (if (= (first sorting) [model-col :asc]) :desc :asc)]]
+             (loop [sorting sorting
+                    found false
+                    result []]
+               (let [column (first sorting)
+                     this-col (first column)
+                     this-dir (second column)]
+                 (if column
+                   (if (= model-col this-col)
+                     (recur (rest sorting)
+                            true
+                            (conj result [model-col (if (= this-dir :asc) :desc :asc)]))
+                     (recur (rest sorting)
+                            found
+                            (conj result column)))
+                   (if found
+                     result
+                     (conj result [model-col :asc])))))))))
+
+(defn- is-sorting
+  "Return the sort direction for the specified column number, nil
+  if the column is not currently sorted, or :none if the column is not
+  sortable at all. Column number must be in model coordinates."
+  [sorting render-info model-col]
+  (if (false? (:sortable render-info))
+    :none
+    (-> (filter #(= (first %) model-col)
+                sorting)
+        first
+        second)))
+
+(defn- header-cell-fn [render-info
+                       view-col
+                       model-col
+                       config
+                       state-atom
+                       data-atom]
+  (let [state         @state-atom
+        col-hidden    (:col-hidden state)
+        {:keys [draggable]} state
+        sort-fn       (:sort config)
+        column-model  (:column-model config)
+        sortable      (not (false? (:sortable render-info)))
+        sort-click-fn (fn [append]
+                        (when sort-fn
+                          (reset! data-atom (sort-fn @data-atom
+                                                     column-model
+                                                     (:sorting (update-sort-columns! model-col state-atom append)))))
+                        (.log js/console (str "append: " append))
+                        (.log js/console (str "sorting: " (:sorting @state-atom)))
+                        )]
     [:th
-     (recursive-merge 
-      (get configs :th)
+     (recursive-merge
+      (:th config)
       {;:width (str (get @col-state-a :width) "px") ;; <--------
-       :draggable true
+       :draggable draggable
        :on-drag-start #(do (doto (.-dataTransfer %)
                              (.setData "text/plain" "")) ;; for Firefox
                            (swap! state-atom assoc :col-reordering true))
-       :on-drag-over #(swap! state-atom assoc :col-hover n)
+       :on-drag-over #(swap! state-atom assoc :col-hover view-col)
        :on-drag-end #(let [col-hover (:col-hover @state-atom)
                            col-sorting (first (get @state-atom :sorting))]
-                       (when-not (= n col-hover) ;; if dropped on another column
-                         (reorder-column! source-atom n col-hover)
-                         (when (some #{col-sorting} [n col-hover])
-                           ;; if any of them is currently sorted
-                           (swap! state-atom update-in
-                                  [:sorting]
-                                  (fn [[col-n sort-type]]
-                                    [(if (= col-n n) col-hover n) sort-type]))))
-                       (swap! state-atom assoc 
+                       (when-not (= view-col col-hover) ;; if dropped on another column
+                         (reorder-column-index-to-model! view-col col-hover state-atom))
+                       (swap! state-atom assoc
                               :col-hover nil
                               :col-reordering nil))
        :style (merge {:position "relative"
-                      :cursor "move"
-                      :display (when (get col-hidden n) "none")}
+                      :cursor (if draggable "move" nil)
+                      :display (when (get col-hidden model-col) "none")}
                      (when (and (:col-reordering state)
-                                (= n (:col-hover state)))
+                                (= view-col (:col-hover state)))
                        {:border-right "6px solid #3366CC"}))})
-     [:span {:style {:padding-right 50}} i]
-     [:span {:style {:position "absolute"
-                     :text-align "center"
-                     :height "1.5em"
-                     :width "1.5em"
-                     :right "15px"
-                     :cursor "pointer"}
-             :on-click sort-click-fn}
-      (condp = (get state :sorting)
-        [n :asc] " ▲" 
-        [n :desc] " ▼"
-        ;; and to occupy the same space...
-        [:span {:style {:opacity "0.3"}}
-         " ▼"])]
+     [:span {:style {:padding-right 50}} (:header render-info)]
+     (when (and sort-fn sortable)
+       [:span {:style {:position "absolute"
+                       :text-align "center"
+                       :height "1.5em"
+                       :width "1.5em"
+                       :right "15px"
+                       :cursor "pointer"}
+               :on-click #(sort-click-fn (.-ctrlKey %))}
+        (condp = (is-sorting (:sorting state) render-info model-col)
+          :asc " ▲"
+          :desc " ▼"
+          :none nil                          ;; not sortable
+          [:span {:style {:opacity "0.3"}}   ;; sortable but not participating
+           " ▼"])])
      [resize-widget (r/current-component)]]))
 
 
-(defn header-row-fn [items configs source-atom state-atom]
-  (let [state @state-atom]
+(defn- header-row-fn [column-model config data-atom state-atom]
+  [:tr
+   (doall (map-indexed (fn [view-col _]
+                         (let [model-col (column-index-to-model state-atom view-col)
+                               render-info (column-model model-col)]
+                           ^{:key (or (:key render-info) model-col)}
+                           [header-cell-fn render-info view-col model-col config state-atom data-atom]))
+                       column-model))])
+
+
+(defn- row-fn [row row-num row-key-fn state-atom config]
+  (let [state @state-atom
+        col-hidden (:col-hidden state)
+        col-key-fn (:col-key       config (fn [row row-num col-num] col-num))
+        col-model  (:column-model  config)
+        cell-fn    (:render-cell   config)]
+    ^{:key (row-key-fn row row-num)}
     [:tr
-     (for [[n i] (map-indexed (fn [& args] args) items)]
-       ^{:key n}
-       [header-cell-fn i n configs source-atom state-atom])]))
-
-
-(defn row-fn [item state-atom]
-  (let [comp (r/current-component)
-        state @state-atom
-        col-hidden (:col-hidden state)]
-  [:tr ;; {:draggable true
-       ;;  :on-drag-start #(do (doto (.-dataTransfer %)
-       ;;                        (.setData "text/plain" "") ;; for Firefox
-       ;;                        ))}
-   (doall
-    (map-indexed (fn [n i]
-                   ^{:key n}
-                   [:td {:on-drag-over #(swap! state-atom assoc :col-hover n)
-                         :style {:border-right (when (and (:col-reordering state)
-                                                          (= n (:col-hover state)))
-                                                 "2px solid #3366CC")
-                                 :display (when (get col-hidden n) "none")}}
-                    i]) item))]))
-  
-(defn rows-fn [rows state-atom]
-  (let [comp (r/current-component)]
-    (doall (map-indexed
-            (fn [n i]
-              ^{:key n}
-              [row-fn i state-atom]) rows))))
-
-
-
-(defn rows-selector [data-atom state-atom configs]
-  (let [headers (:headers @data-atom)
-        hidden-rows (r/cursor state-atom [:col-hidden])]
-    [:ul (:ul configs)
      (doall
-      (for [[col-n i] (map-indexed #(vector %1 %2) headers) 
-            :let [hidden-a (r/cursor hidden-rows [col-n])
-                  li-config (get-in configs [:ul :li])]]
-        ^{:key col-n}
-        [:li (recursive-merge
-              {:style {:margin 8
-                       :cursor "pointer"}
-               :on-click #(do (swap! hidden-a not) nil)}
-              li-config)
-         i " "(if @hidden-a "☐" "☑")]))]))
+       (map-indexed (fn [view-col _]
+                      (let [model-col (column-index-to-model state-atom view-col)]
+                        ^{:key (col-key-fn row row-num model-col)}
+                        [:td
+                         {:style  {:border-right (when (and (:col-reordering state)
+                                                            (= view-col (:col-hover state)))
+                                                             "2px solid #3366CC")
+                                   :display      (when (get col-hidden model-col) "none")}}
+                         (cell-fn (col-model model-col) row row-num model-col)]))
+                    (or
+                      col-model
+                      row)))]))
+  
+(defn- rows-fn [rows state-atom config]
+  (let [row-key-fn (:row-key config (fn [row row-num] row-num))]
+  (doall (map-indexed
+           (fn [row-num row]
+             (row-fn row row-num row-key-fn state-atom config))
+           rows))))
 
+(defn- column-selector [state-atom selector-config column-model]
+  (let [hidden-cols (r/cursor state-atom [:col-hidden])
+        li-config (get-in selector-config [:ul :li])]
+    [:ul ;(:ul selector-config)
+     (doall
+       (map-indexed (fn [view-col _]
+                      (let [model-col (column-index-to-model state-atom view-col)
+                            render-info (column-model model-col)
+                            hidden-a (r/cursor hidden-cols [model-col])]
+                        ^{:key (or (:key render-info) model-col)}
+                        [:li (recursive-merge
+                               {:style {:margin 8
+                                        :cursor "pointer"}
+                                :on-click #(do (swap! hidden-a not) nil)}
+                               li-config)
+                         (:header render-info) " "(if @hidden-a "☐" "☑")]))
+                    column-model))]))
 
+(defn- init-column-index
+  "Set up in the initial column-index-to-model numbers"
+  [headers]
+  (into [] (map-indexed (fn [idx _] idx) headers)))
 
 (defn reagent-table
-  "Optional properties map include :table :thead and :tbody.
-  For example:
-  (reagent-table ... {:table {:class \"table-striped\"}})"
-  ([data-or-data-atom] (reagent-table data-or-data-atom {}))
-  ([data-or-data-atom table-configs]
-   (let [table-configs (recursive-merge default-configs table-configs)
-         data-atom (if-not (satisfies? IAtom data-or-data-atom)
-                     (r/atom data-or-data-atom)
-                     data-or-data-atom)                    
-         state-atom (r/atom {})] ;; a place for the table local state
-     (assert (let [data @data-atom]
-               (and (:headers data)
-                    (:rows data)))
-             "Missing :headers or :rows in the provided data.")
-                   
-     (fn []
-       (let [data @data-atom]
-         [:div
-          [:style (str ".reagent-table * table {table-layout:fixed;}"
-                       ".reagent-table * td { max-width: 3px;"
-                       "overflow: hidden;text-overflow: ellipsis;white-space: nowrap;}")]
-          (when-let [selector-config (:rows-selection table-configs)]
-            ;(js/console.log (str selector-config))
-            [rows-selector data-atom state-atom selector-config])
-          [:table.reagent-table (:table table-configs)
-           (when-let [caption (:caption table-configs)]
-             caption)
-           [:thead (:thead table-configs)
-            (header-row-fn (:headers data) 
-                           (get-in table-configs [:table :thead :tr]) 
-                           data-atom 
-                           state-atom)]
-           [:tbody (:tbody table-configs)
-            (rows-fn (:rows data) state-atom)]]])))))
+  "Create a table, rendering the vector held in data-atom and
+  configured using the map config. The minimum requirements of
+  config are :render-cell and :column-model.
+
+  There is a distinction between view and model coordinates for
+  column numbers. A column's view position may change if it is
+  reordered, whereas its model position will be that of its index
+  into :column-model
+
+  :column-model is a vector of so-called render-info maps containing
+   - :header A string for the header cell text
+   - :key The reagent key for the column position in any rows. If
+     absent defaults to the model index
+   - :sortable false When :sort is present (see below) by default all
+     columns are sortable. Otherwise any column can be excluded and no
+     glyph will appear in its header.
+  Other entries are as required by the client. The map is passed to
+  the :render-cell function when cells are rendered.
+
+  :render-cell a function that returns the hiccup for a table cell
+    (fn [render-info row row-num col-num] (...))
+  where render-info is the column entry, row is the vector child from
+  data-atom, row-num is the row number and col-num is the column number
+  in model coordiates.
+
+  :table-state an atom used to hold table internal state. If supplied by
+  the client then a way to see table state at the repl, and to allow the
+  client to modify column order and sorting state.
+
+  :row-key a function that returns a value to be used as the regaent key
+  for rows
+    (fn [row row-num] (...))
+  where row is the vector child from data-atom, row-num is the row number.
+
+  :sort a function to sort data-atom when a header cell sort arrow is clicked.
+  Returns the newly sorted vector. If absent, the table is not sortable and no
+  glyphs appear in the header.
+    (fn [rows column-model sorting] (...))
+  where rows is the vector to sort, column-model is the :column-model and sorting
+  is a vector of vectors of the form [column-model-index :asc|:desc]. If the
+  column-model entry includes :sortable false the individual column is excluded
+  from sorting. Select multiple columns for sorting by using ctrl-click. Repeat
+  to toggle the sort direction.
+
+  :table the attributes applied to the [:table ... ] element. Defaults
+  to {:style {:width nil}}}
+
+  :thead the attributes applied to [:thead ...]
+
+  :tbody the attributes applied to [:tbody ...]
+
+  :caption an optional hiccup form for a caption
+
+  :column-selection optional attributes to display visibly column toggles
+  for example {:ul {:li {:class \"btn\"}}}
+  "
+  [data-atom config]
+  (let [config (recursive-merge default-config config)
+        state-atom (or (:table-state config) (r/atom {})) ;; a place for the table local state
+        {:keys [render-cell column-model]} config]
+    (assert (and render-cell column-model)
+            "Must provide :column-model and :render-cell in table config")
+    (swap! state-atom assoc :col-index-to-model (init-column-index column-model))
+    (fn []
+      (let [data @data-atom]
+        [:div
+         [:style (str ".reagent-table * table {table-layout:fixed;}"
+                      ".reagent-table * td { max-width: 3px;"
+                      "overflow: hidden;text-overflow: ellipsis;white-space: nowrap;}")]
+         (when-let [selector-config (:column-selection config)]
+           [column-selector state-atom selector-config column-model])
+         [:table.reagent-table (:table config)
+          (when-let [caption (:caption config)]
+            caption)
+          [:thead (:thead config)
+           (header-row-fn column-model
+                          config
+                          data-atom
+                          state-atom)]
+          [:tbody (:tbody config)
+           (rows-fn data state-atom config)]]]))))
 
