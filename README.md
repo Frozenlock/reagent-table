@@ -89,6 +89,10 @@ to `{:style {:width nil}}}`
 
 `:caption` an optional hiccup form for a caption
 
+`:scroll-height` If present then expresses a height for table and enables
+scrolling with fixed headers. Depending on what else is in the window, a
+value of `"80vh"` might give a good result. Does not play well with `:caption`.
+
 `:column-selection` optional attributes to display visible column toggles
 for example `{:ul {:li {:class "btn"}}}`
 
