@@ -81,19 +81,25 @@ from sorting. Select multiple columns for sorting by using ctrl-click. Repeat
 to toggle the sort direction.
 
 `:table` The attributes applied to the `[:table ... ]` element. Defaults
-to `{:style {:width nil}}}`
+to `{:style {:width nil}}}` If using fixed headers include `:border-collapse "separate"`
+to ensure any border on the header cells remains fixed to them.
 
-`:thead` the attributes applied to `[:thead ...]`
+`:table-container` Attributes applied to the `<div>` used to contain the table. For example
+if you want a decorative border place it here, so that any scrolling does not affect it.
+Internally, this container has the class `reagent-table-container` so you may style it
+externally.
 
-`:tbody` the attributes applied to `[:tbody ...]`
+`:thead` The attributes applied to `[:thead ...]`
 
-`:caption` an optional hiccup form for a caption
+`:tbody` The attributes applied to `[:tbody ...]`
+
+`:caption` An optional hiccup form for a caption
 
 `:scroll-height` If present then expresses a height for table and enables
 scrolling with fixed headers. Depending on what else is in the window, a
 value of `"80vh"` might give a good result. Does not play well with `:caption`.
 
-`:column-selection` optional attributes to display visible column toggles
+`:column-selection` Optional attributes to display visible column toggles
 for example `{:ul {:li {:class "btn"}}}`
 
 See `reagent-table.dev` for a working example.

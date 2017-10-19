@@ -216,8 +216,11 @@
  [:div.container {:style {:font-size 16 :margin-top 10} :height "100%"}
   ;[:div.panel.panel-default
    ;[:div.panel-body
-    [rt/reagent-table table-data {:table {:class "table table-hover table-striped table-bordered table-transition"}
-                                  :th {:style {:background-color "black"}}
+    [rt/reagent-table table-data {:table {:class "table table-hover table-striped table-bordered table-transition"
+                                          :style {:border-spacing 0
+                                                  :border-collapse "separate"}}
+                                  :table-container {:style {:border "1px solid green"}}
+                                  :th {:style {:border "1px solid white" :background-color "black"}}
                                   :table-state  table-state
                                   :scroll-height "80vh"
                                   :column-model columns
