@@ -43,9 +43,11 @@
   (let [scroller    (.-currentTarget event)
         cur         (.-scrollTop scroller)
         view-height (.-clientHeight scroller)
+        cell        (.querySelector scroller "td")
         scroll-dist (if page view-height
-                             (-> (.querySelector scroller "td")
-                                 (.-clientHeight)))]
+                             (or (and cell
+                                      (.-clientHeight cell))
+                                 0))]
     (.preventDefault event)
     (set! (.-scrollTop scroller)
           (+ cur (* scroll-dist direction)))))
