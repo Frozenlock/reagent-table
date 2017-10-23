@@ -213,16 +213,21 @@
 (def table-state (atom {:draggable true}))
 
 (r/render-component 
- [:div.container {:style {:font-size 16 :margin-top 10}}
+ [:div.container {:style {:font-size 16 :margin-top 10} :height "100%"}
   ;[:div.panel.panel-default
    ;[:div.panel-body
-    [rt/reagent-table table-data {:table {:class "table table-hover table-striped table-bordered table-transition"}
+    [rt/reagent-table table-data {:table {:class "table table-hover table-striped table-bordered table-transition"
+                                          :style {:border-spacing 0
+                                                  :border-collapse "separate"}}
+                                  :table-container {:style {:border "1px solid green"}}
+                                  :th {:style {:border "1px solid white" :background-color "black"}}
                                   :table-state  table-state
+                                  :scroll-height "80vh"
                                   :column-model columns
                                   :row-key      row-key-fn
                                   :render-cell  cell-fn
                                   :sort         sort-fn
-                                  :caption [:caption "Test caption"]
+                                  ;:caption [:caption "Test caption"]
                                   :column-selection {:ul
                                                    {:li {:class "btn"}}}
                                   }]]

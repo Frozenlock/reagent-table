@@ -24,8 +24,64 @@
     (reset! drag-end-atom drag-end)
     (events/listen js/window EventType.MOUSEMOVE drag-move)
     (events/listen js/window EventType.MOUSEUP drag-end)))
-  
 
+; See https://stackoverflow.com/questions/673153/html-table-with-fixed-headers
+(defn- table-scroll
+  "Handler for scrolling events from the table's containing div.
+  Keep the position of the headers apparently fixed while the div
+  is scrolled. Moves <thead>. May be needs to move all <th> for IE..."
+  [e]
+  (let [scroller (.-target e)
+        translate (str "translate(0," (dec (.-scrollTop scroller)) "px)")
+        all-th (.querySelectorAll scroller "th")
+        thead (.querySelector scroller "thead")]
+    ;(doseq [th (array-seq all-th)]  ; may be these for IE ?
+     ; (set! (-> th .-style .-transform) translate))
+    (set! (-> thead .-style .-transform) translate)))
+
+(defn- scroll-to [event direction page]
+  (let [scroller    (.-currentTarget event)
+        cur         (.-scrollTop scroller)
+        view-height (.-clientHeight scroller)
+        cell        (.querySelector scroller "td")
+        scroll-dist (if page view-height
+                             (or (and cell
+                                      (.-clientHeight cell))
+                                 0))]
+    (.preventDefault event)
+    (set! (.-scrollTop scroller)
+          (+ cur (* scroll-dist direction)))))
+
+(defn- wheel-scroll
+  [e]
+  (scroll-to
+    e
+    (if (pos? (.-deltaY e)) 1 -1)
+    false))
+
+(defn- key-scroll
+  [e]
+  (case (.-key e)
+    "ArrowUp"
+    (scroll-to e -1 false)
+    "ArrowDown"
+    (scroll-to e 1 false)
+    "PageDown"
+    (scroll-to e 1 true)
+    "PageUp"
+    (scroll-to e -1 true)
+    " "
+    (scroll-to e 1 false)
+    "default"))
+
+(defn- init-scrolling
+  [scroller]
+  (let [container (r/dom-node scroller)]
+    ;    (events/listen container EventType.SCROLL table-scroll) ;leave behind in case switch to goog events
+    ;    ;(events/listen container EventType.WHEEL table-scroll)
+    (.addEventListener container "scroll" table-scroll false)
+    (.addEventListener container "wheel" wheel-scroll false)
+    (.addEventListener container "keydown" key-scroll false)))
 
 (defn- recursive-merge
   "Recursively merge hash maps."
@@ -156,15 +212,11 @@
                         (when sort-fn
                           (reset! data-atom (sort-fn @data-atom
                                                      column-model
-                                                     (:sorting (update-sort-columns! model-col state-atom append)))))
-                        (.log js/console (str "append: " append))
-                        (.log js/console (str "sorting: " (:sorting @state-atom)))
-                        )]
+                                                     (:sorting (update-sort-columns! model-col state-atom append))))))]
     [:th
      (recursive-merge
       (:th config)
-      {;:width (str (get @col-state-a :width) "px") ;; <--------
-       :draggable draggable
+      {:draggable draggable
        :on-drag-start #(do (doto (.-dataTransfer %)
                              (.setData "text/plain" "")) ;; for Firefox
                            (swap! state-atom assoc :col-reordering true))
@@ -176,7 +228,8 @@
                        (swap! state-atom assoc
                               :col-hover nil
                               :col-reordering nil))
-       :style (merge {:position "relative"
+       :style (merge (get-in config [:th :style])
+                     {:position "relative"
                       :cursor (if draggable "move" nil)
                       :display (when (get col-hidden model-col) "none")}
                      (when (and (:col-reordering state)
@@ -262,6 +315,29 @@
   [headers]
   (into [] (map-indexed (fn [idx _] idx) headers)))
 
+(defn- the-table
+  [config column-model data-atom state-atom]
+  (let [scroll-height   (:scroll-height config)
+        table-container (:table-container config)]
+    (r/create-class {:component-did-mount    (fn [this] (init-scrolling this))
+                     :reagent-render         (fn [] [:div.reagent-table-container
+                                                     (if scroll-height (recursive-merge
+                                                                         table-container
+                                                                         {:tab-index 0
+                                                                          :style     {:height   scroll-height
+                                                                                      :overflow "auto"}})
+                                                                       table-container)
+                                                     [:table.reagent-table (:table config)
+                                                      (when-let [caption (:caption config)]
+                                                        caption)
+                                                      [:thead (:thead config)
+                                                       (header-row-fn column-model
+                                                                      config
+                                                                      data-atom
+                                                                      state-atom)]
+                                                      [:tbody (:tbody config)
+                                                       (rows-fn @data-atom state-atom config)]]])})))
+
 (defn reagent-table
   "Create a table, rendering the vector held in data-atom and
   configured using the map config. The minimum requirements of
@@ -327,21 +403,11 @@
             "Must provide :column-model and :render-cell in table config")
     (swap! state-atom assoc :col-index-to-model (init-column-index column-model))
     (fn []
-      (let [data @data-atom]
         [:div
          [:style (str ".reagent-table * table {table-layout:fixed;}"
                       ".reagent-table * td { max-width: 3px;"
                       "overflow: hidden;text-overflow: ellipsis;white-space: nowrap;}")]
          (when-let [selector-config (:column-selection config)]
            [column-selector state-atom selector-config column-model])
-         [:table.reagent-table (:table config)
-          (when-let [caption (:caption config)]
-            caption)
-          [:thead (:thead config)
-           (header-row-fn column-model
-                          config
-                          data-atom
-                          state-atom)]
-          [:tbody (:tbody config)
-           (rows-fn data state-atom config)]]]))))
+         [the-table config column-model data-atom state-atom]])))
 
