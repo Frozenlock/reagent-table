@@ -1,5 +1,6 @@
 (ns ^:figwheel-always reagent-table.dev
   (:require [reagent.core :as r :refer [atom]]
+            [reagent.dom :as rdom]
             [reagent-table.core :as rt]
             [goog.events :as events]
             [goog.i18n.NumberFormat.Format])
@@ -212,7 +213,7 @@
 
 (def table-state (atom {:draggable true}))
 
-(r/render-component 
+(rdom/render
  [:div.container {:style {:font-size 16 :margin-top 10} :height "100%"}
   ;[:div.panel.panel-default
    ;[:div.panel-body
